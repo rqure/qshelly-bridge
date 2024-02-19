@@ -1,1 +1,1 @@
-# qshelly-bridge
+# qmq2mqtt
