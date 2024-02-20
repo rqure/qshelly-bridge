@@ -2,7 +2,7 @@ module github.com/rqure/qlogger
 
 go 1.21.6
 
-require github.com/rqure/qmq v1.0.16
+require github.com/rqure/qmq v1.0.18
 
 require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

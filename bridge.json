@@ -1,0 +1,19 @@
+{
+    "shellies/shelly1pm-<deviceid>/announce": [],
+    "shellies/shelly1pm-<deviceid>/online": [],
+    "shellies/shelly1pm-<deviceid>/relay/0": [
+        "garage:notifications:shelly"
+    ],
+    "shellies/shelly1pm-<deviceid>/input/0": [],
+    "shellies/shelly1pm-<deviceid>/longpush/0": [],
+    "shellies/shelly1pm-<deviceid>/input_event/0": [],
+    "shellies/shelly1pm-<deviceid>/relay/0/power": [],
+    "shellies/shelly1pm-<deviceid>/relay/0/energy": [],
+    "shellies/shelly1pm-<deviceid>/temperature": [],
+    "shellies/shelly1pm-<deviceid>/temperature_f": [],
+    "shellies/shelly1pm-<deviceid>/overtemperature": [],
+    "shellies/shelly1pm-<deviceid>/temperature_status": [],
+    "shellies/shelly1pm-<deviceid>/relay/0/overpower_value": [],
+    "shellies/shelly1pm-<deviceid>/ext_temperature/<i>": [],
+    "shellies/shelly1pm-<deviceid>/ext_temperature_f/<i>": []
+}
