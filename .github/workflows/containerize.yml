@@ -27,4 +27,4 @@ jobs:
         with:
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: rqure/logger:${{ github.ref_name }}
+          tags: rqure/qmq2mqtt:${{ github.ref_name }}
