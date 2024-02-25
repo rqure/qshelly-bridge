@@ -1,4 +1,4 @@
-module github.com/rqure/qlogger
+module github.com/rqure/qmq2mqtt
 
 go 1.21.6
 
