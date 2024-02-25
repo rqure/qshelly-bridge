@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -31,6 +32,7 @@ func main() {
 	app.Initialize()
 	defer app.Deinitialize()
 	app.AddConsumer("qmq2mqtt:queue").Initialize()
+	producerLock := &sync.Mutex{}
 
 	opt := mqtt.NewClientOptions()
 	opt.AddBroker(mqttAddr)
@@ -41,11 +43,13 @@ func main() {
 	client.Subscribe("#", 2, func(c mqtt.Client, m mqtt.Message) {
 		key := "qmq2mqtt:exchange:" + m.Topic()
 
+		producerLock.Lock()
 		p := app.Producer(key)
 		if p != nil {
 			p = app.AddProducer(key)
 			p.Initialize(int64(defaultProducerLength))
 		}
+		producerLock.Unlock()
 
 		msg := &qmq.QMQMqttMessage{
 			Topic:     m.Topic(),
