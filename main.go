@@ -15,7 +15,7 @@ import (
 func main() {
 	mqttAddr := os.Getenv("MQTT_ADDR")
 	if mqttAddr == "" {
-		mqttAddr = "tcp://mosquitto"
+		mqttAddr = "tcp://mosquitto:1883"
 	}
 
 	defaultProducerLength, err := strconv.Atoi(os.Getenv("QMQ_DEFAULT_PRODUCER_LENGTH"))
@@ -40,7 +40,7 @@ func main() {
 
 	app.Logger().Advise("Connecting to MQTT broker '" + mqttAddr + "'...")
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		app.Logger().Error("Failed to connect to MQTT broker '" + mqttAddr + "': " + token.Error().Error())
+		app.Logger().Panic("Failed to connect to MQTT broker '" + mqttAddr + "': " + token.Error().Error())
 		return
 	}
 	defer client.Disconnect(0)
@@ -50,7 +50,7 @@ func main() {
 
 		producerLock.Lock()
 		p := app.Producer(key)
-		if p != nil {
+		if p == nil {
 			p = app.AddProducer(key)
 			p.Initialize(int64(defaultProducerLength))
 		}
@@ -80,7 +80,7 @@ func main() {
 			return
 		case <-ticker.C:
 			if !client.IsConnected() {
-				app.Logger().Error("Connection to MQTT broker '" + mqttAddr + "' was lost")
+				app.Logger().Panic("Connection to MQTT broker '" + mqttAddr + "' was lost")
 				return
 			}
 
