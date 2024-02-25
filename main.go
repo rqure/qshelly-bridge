@@ -50,7 +50,7 @@ func main() {
 
 		producerLock.Lock()
 		p := app.Producer(key)
-		if p != nil {
+		if p == nil {
 			p = app.AddProducer(key)
 			p.Initialize(int64(defaultProducerLength))
 		}
