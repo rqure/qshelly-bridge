@@ -15,7 +15,7 @@ import (
 func main() {
 	mqttAddr := os.Getenv("MQTT_ADDR")
 	if mqttAddr == "" {
-		mqttAddr = "tcp://mosquitto"
+		mqttAddr = "tcp://mosquitto:1883"
 	}
 
 	defaultProducerLength, err := strconv.Atoi(os.Getenv("QMQ_DEFAULT_PRODUCER_LENGTH"))
