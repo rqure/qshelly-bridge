@@ -5,7 +5,6 @@ go 1.21.6
 require (
 	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/rqure/qmq v1.1.8
-	google.golang.org/protobuf v1.32.0
 )
 
 require (
@@ -15,4 +14,5 @@ require (
 	github.com/redis/go-redis/v9 v9.5.1 // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
+	google.golang.org/protobuf v1.32.0 // indirect
 )
