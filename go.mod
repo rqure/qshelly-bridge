@@ -4,7 +4,7 @@ go 1.21.6
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.4.3
-	github.com/rqure/qmq v1.1.8
+	github.com/rqure/qmq v1.1.11
 )
 
 require (
