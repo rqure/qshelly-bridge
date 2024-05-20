@@ -19,7 +19,7 @@ func (c *EngineProcessor) Process(e qmq.EngineComponentProvider) {
 		select {
 		case <-quit:
 			return
-		case consumable := <-e.WithConsumer("qmq2mqtt:cmd").Pop():
+		case consumable := <-e.WithConsumer("qmq2mqtt:cmd:send-msg").Pop():
 			consumable.Ack()
 
 			m := consumable.Data().(*qmq.MqttMessage)
