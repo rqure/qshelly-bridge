@@ -13,5 +13,10 @@ func (a *ProducerFactory) Create(key string, components qmq.EngineComponentProvi
 	maxLength := 10
 	redisConnection := components.WithConnectionProvider().Get("redis").(*qmq.RedisConnection)
 	transformerKey := "producer:" + key
-	return qmq.NewRedisProducer(key, redisConnection, int64(maxLength), components.WithTransformerProvider().Get(transformerKey))
+
+	return qmq.NewRedisProducer(redisConnection, &qmq.RedisProducerConfig{
+		Topic:        key,
+		Transformers: components.WithTransformerProvider().Get(transformerKey),
+		Length:       int64(maxLength),
+	})
 }
