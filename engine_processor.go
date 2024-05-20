@@ -19,7 +19,7 @@ func (c *EngineProcessor) Process(e qmq.EngineComponentProvider) {
 		select {
 		case <-quit:
 			return
-		case consumable := <-e.WithConsumer("qmq2mqtt:queue").Pop():
+		case consumable := <-e.WithConsumer("qmq2mqtt:cmd").Pop():
 			consumable.Ack()
 
 			m := consumable.Data().(*qmq.MqttMessage)
@@ -30,7 +30,7 @@ func (c *EngineProcessor) Process(e qmq.EngineComponentProvider) {
 			consumable.Ack()
 
 			m := consumable.Data().(*qmq.MqttMessage)
-			key := "qmq2mqtt:exchange:" + m.Topic
+			key := "qmq2mqtt:topic:" + m.Topic
 
 			e.WithLogger().Debug(fmt.Sprintf("Received MQTT message: %v", m))
 			e.WithProducer(key).Push(m)
