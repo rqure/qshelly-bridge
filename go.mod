@@ -1,4 +1,4 @@
-module github.com/rqure/qmq2mqtt
+module github.com/rqure/qmqttgateway
 
 go 1.21.6
 

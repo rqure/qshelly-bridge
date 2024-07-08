@@ -25,7 +25,7 @@ func NewMqttConsumer(key string, conn *MqttConnection) qmq.Consumer {
 
 func (c *MqttConsumer) Register() {
 	c.conn.Subscribe(c.key, 2, func(_ mqtt.Client, m mqtt.Message) {
-		c.readCh <- NewMqttConsumable(m)
+		// c.readCh <- NewMqttConsumable(m)
 	})
 }
 

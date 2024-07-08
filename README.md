@@ -1,1 +1,1 @@
-# qmq2mqtt
+# qmqttgateway
