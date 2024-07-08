@@ -7,7 +7,7 @@ import (
 
 type IMqttDevice interface {
 	ProcessMessage(message mqtt.Message, db qdb.IDatabase)
-	ProcessNotification(notification *qdb.DatabaseNotification)
+	ProcessNotification(notification *qdb.DatabaseNotification, publish *qdb.Signal)
 	RegisterNotification(config *qdb.DatabaseNotificationConfig)
 }
 
