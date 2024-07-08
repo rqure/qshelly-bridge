@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	qdb "github.com/rqure/qdb/src"
 )
@@ -10,11 +12,15 @@ type MqttConnectionsHandler struct {
 	hasInit      bool
 	isLeader     bool
 	addrToClient map[string]mqtt.Client
+
+	lastCheckConnectionTime time.Time
+	checkConnectionInterval time.Duration
 }
 
 func NewMqttConnectionsHandler(db qdb.IDatabase) *MqttConnectionsHandler {
 	return &MqttConnectionsHandler{
-		db: db,
+		db:                      db,
+		checkConnectionInterval: 5 * time.Second,
 	}
 }
 
@@ -22,6 +28,19 @@ func (h *MqttConnectionsHandler) OnBecameLeader() {
 	h.isLeader = true
 
 	if !h.hasInit {
+		// get all mqtt servers from the database
+		servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
+			EntityType: "MqttServer",
+		})
+
+		for _, server := range servers {
+			addr := server.GetField("Address").PullValue(&qdb.String{}).(*qdb.String).Raw
+			opts := mqtt.NewClientOptions()
+			opts.AddBroker(addr)
+			opts.AutoReconnect = true
+			h.addrToClient[addr] = mqtt.NewClient(opts)
+		}
+
 		// connect to all servers and subscribe to all topics
 		for _, client := range h.addrToClient {
 			if !client.IsConnected() {
@@ -63,6 +82,11 @@ func (h *MqttConnectionsHandler) ProcessNotification(notification *qdb.DatabaseN
 }
 
 func (h *MqttConnectionsHandler) processConnectionStatuses() {
+	if time.Since(h.lastCheckConnectionTime) < h.checkConnectionInterval {
+		return
+	}
+	h.lastCheckConnectionTime = time.Now()
+
 	// check connection status to all servers and store it in the database
 	for addr, client := range h.addrToClient {
 		connectionStatus := qdb.ConnectionState_UNSPECIFIED
