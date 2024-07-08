@@ -39,13 +39,7 @@ func (h *MqttConnectionsHandler) OnBecameLeader() {
 			opts.AddBroker(addr)
 			opts.AutoReconnect = true
 			h.addrToClient[addr] = mqtt.NewClient(opts)
-		}
-
-		// connect to all servers and subscribe to all topics
-		for _, client := range h.addrToClient {
-			if !client.IsConnected() {
-				client.Connect()
-			}
+			h.addrToClient[addr].Connect()
 		}
 
 		h.hasInit = true
