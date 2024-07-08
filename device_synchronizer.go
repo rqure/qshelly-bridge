@@ -37,6 +37,6 @@ func (h *DeviceSynchronizer) DoWork() {
 
 }
 
-func (h *DeviceSynchronizer) ProcessNotifications() {
+func (h *DeviceSynchronizer) ProcessNotification(notification *qdb.DatabaseNotification) {
 
 }
