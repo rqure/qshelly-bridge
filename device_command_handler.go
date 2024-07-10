@@ -2,6 +2,7 @@ package main
 
 import qdb "github.com/rqure/qdb/src"
 
+// Used to process device commands
 type DeviceCommandHandler struct {
 	db       qdb.IDatabase
 	isLeader bool

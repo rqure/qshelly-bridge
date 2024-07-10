@@ -12,8 +12,16 @@ type MqttSubscriptionConfig struct {
 
 type IMqttDevice interface {
 	GetModel() string
+
+	// Process messages from the MQTT broker
+	// The idea is that you store the message content in the database
 	ProcessMessage(message mqtt.Message, db qdb.IDatabase)
+
+	// Process notifications from the database
+	// Ther idea is that notifications are device commands that essentially
+	// causes us to publish a message to the MQTT broker
 	ProcessNotification(notification *qdb.DatabaseNotification, publish *qdb.Signal)
+
 	GetNotificationConfig() *qdb.DatabaseNotificationConfig
 	GetSubscriptionConfig(entity qdb.IEntity) []*MqttSubscriptionConfig
 }

@@ -38,6 +38,7 @@ func (e *MqttEvent) GetAddress() string {
 	return e.Address
 }
 
+// Used to manage connections to MQTT servers
 type MqttConnectionsHandler struct {
 	db           qdb.IDatabase
 	hasInit      bool
