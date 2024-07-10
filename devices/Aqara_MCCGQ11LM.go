@@ -16,11 +16,25 @@ import (
 type Aqara_MCCGQ11LM struct {
 }
 
+func (d *Aqara_MCCGQ11LM) GetModel() string {
+	return "AqaraMCCGQ11LM"
+}
+
 func (d *Aqara_MCCGQ11LM) ProcessMessage(message mqtt.Message, db qdb.IDatabase) {
 }
 
 func (d *Aqara_MCCGQ11LM) ProcessNotification(notification *qdb.DatabaseNotification, publish *qdb.Signal) {
 }
 
-func (d *Aqara_MCCGQ11LM) RegisterNotification(config *qdb.DatabaseNotificationConfig) {
+func (d *Aqara_MCCGQ11LM) GetNotificationConfig() *qdb.DatabaseNotificationConfig {
+	return nil
+}
+
+func (d *Aqara_MCCGQ11LM) GetSubscriptionConfig(entity qdb.IEntity) []*MqttSubscriptionConfig {
+	return []*MqttSubscriptionConfig{
+		{
+			Topic: entity.GetField("Topic").PullValue(&qdb.String{}).(*qdb.String).Raw,
+			Qos:   0,
+		},
+	}
 }
