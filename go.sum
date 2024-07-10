@@ -18,8 +18,6 @@ github.com/redis/go-redis/v9 v9.5.1 h1:H1X4D3yHPaYrkL5X06Wh6xNVM/pX0Ft4RV0vMGvLB
 github.com/redis/go-redis/v9 v9.5.1/go.mod h1:hdY0cQFCN4fnSYT6TkisLufl/4W5UIXyv0b/CLO2V2M=
 github.com/rqure/qdb v1.2.42 h1:p+QtdlAPSRC+GXlVwJi/XDQTD+eVHOAV7T6GYupc5Z8=
 github.com/rqure/qdb v1.2.42/go.mod h1:G/frdO6RXYzffeVyKiPl8H1P4vo9C/UAB12LZxtJhos=
-github.com/rqure/qmq v1.1.22 h1:aK8IqvAGUZQTr1T3Usit5Yr0PPE90oPgb11l5COL/sM=
-github.com/rqure/qmq v1.1.22/go.mod h1:TPBREZR/PSRQiRUizbsl+smiKQe0+oHOqqob7j7HvtY=
 golang.org/x/net v0.21.0 h1:AQyQV4dYCvJ7vGmJyKki9+PBdyvhkSd8EIx/qb0AYv4=
 golang.org/x/net v0.21.0/go.mod h1:bIjVDfnllIU7BJ2DNgfnXvpSvtn8VRwhlsaeUTyUS44=
 golang.org/x/sync v0.6.0 h1:5BMeUDZ7vkXGfEr1x9B4bRcTH4lpkTkpdh0T/J+qjbQ=
