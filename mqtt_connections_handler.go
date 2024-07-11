@@ -95,6 +95,10 @@ func (h *MqttConnectionsHandler) OnLostLeadership() {
 }
 
 func (h *MqttConnectionsHandler) OnPublish(args ...interface{}) {
+	if !h.isLeader {
+		return
+	}
+
 	addr := args[0].(string)
 	topic := args[1].(string)
 	qos := args[2].(byte)
