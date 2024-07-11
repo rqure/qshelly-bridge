@@ -127,10 +127,6 @@ func (h *MqttConnectionsHandler) Deinit() {
 }
 
 func (h *MqttConnectionsHandler) DoWork() {
-	if !h.isLeader {
-		return
-	}
-
 	for {
 		select {
 		case event := <-h.events:
@@ -153,6 +149,10 @@ func (h *MqttConnectionsHandler) ProcessNotification(notification *qdb.DatabaseN
 }
 
 func (h *MqttConnectionsHandler) onMqttServerConnected(addr string) {
+	if !h.isLeader {
+		return
+	}
+
 	client := h.addrToClient[addr]
 	qdb.Info("[MqttConnectionsHandler::onMqttServerConnected] Connected to server: %s", addr)
 
@@ -191,6 +191,10 @@ func (h *MqttConnectionsHandler) onMqttServerConnected(addr string) {
 }
 
 func (h *MqttConnectionsHandler) onMqttServerDisconnected(addr string, err error) {
+	if !h.isLeader {
+		return
+	}
+
 	qdb.Warn("[MqttConnectionsHandler::onMqttServerDisconnected] Disconnected from server: %s (%v)", addr, err)
 
 	servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
@@ -206,6 +210,10 @@ func (h *MqttConnectionsHandler) onMqttServerDisconnected(addr string, err error
 }
 
 func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Message) {
+	if !h.isLeader {
+		return
+	}
+
 	qdb.Trace("[MqttConnectionsHandler::onMqttMessageReceived] Received message from server: %s (%v)", addr, msg)
 
 	// Not the most performant algorithm but should work for now
