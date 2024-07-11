@@ -53,6 +53,8 @@ func main() {
 		Workers: []qdb.IWorker{
 			dbWorker,
 			leaderElectionWorker,
+			deviceCommandHandler,
+			mqttConnectionsHandler,
 		},
 	}
 
