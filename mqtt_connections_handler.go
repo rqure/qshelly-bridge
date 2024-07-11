@@ -103,7 +103,11 @@ func (h *MqttConnectionsHandler) OnPublish(args ...interface{}) {
 
 	qdb.Trace("[MqttConnectionsHandler::OnPublish] Publishing message to server: %s, topic: %s, qos: %d, retained: %v, payload: %v", addr, topic, qos, retained, payload)
 
-	h.addrToClient[addr].Publish(topic, qos, retained, payload)
+	if client, ok := h.addrToClient[addr]; ok {
+		client.Publish(topic, qos, retained, payload)
+	} else {
+		qdb.Error("[MqttConnectionsHandler::OnPublish] No client found for address: %s", addr)
+	}
 }
 
 func (h *MqttConnectionsHandler) Init() {
