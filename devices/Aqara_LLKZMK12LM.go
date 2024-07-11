@@ -100,6 +100,7 @@ func (d *Aqara_LLKZMK12LM) ProcessNotification(notification *qdb.DatabaseNotific
 	addr := &qdb.String{}
 	topic := &qdb.String{}
 	qos := 0
+	retained := false
 
 	err := notification.Context[0].Value.UnmarshalTo(addr)
 	if err != nil {
@@ -115,9 +116,13 @@ func (d *Aqara_LLKZMK12LM) ProcessNotification(notification *qdb.DatabaseNotific
 
 	switch notification.Current.Name {
 	case "StateOnTrigger":
-		publish.Emit(addr.Raw, topic.Raw)
+		publish.Emit(addr.Raw, topic.Raw+"/set", qos, retained, map[string]interface{}{
+			"state_l1": "ON",
+		})
 	case "StateOffTrigger":
-
+		publish.Emit(addr.Raw, topic.Raw+"/set", qos, retained, map[string]interface{}{
+			"state_l1": "OFF",
+		})
 	}
 }
 

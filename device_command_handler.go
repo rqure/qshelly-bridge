@@ -17,7 +17,7 @@ type DeviceCommandHandler struct {
 	Signals  DeviceCommandHandlerSignals
 }
 
-func NewDeviceSynchronizer(db qdb.IDatabase) *DeviceCommandHandler {
+func NewDeviceCommandHandler(db qdb.IDatabase) *DeviceCommandHandler {
 	return &DeviceCommandHandler{
 		db: db,
 	}
