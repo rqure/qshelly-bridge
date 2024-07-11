@@ -94,6 +94,18 @@ func (h *MqttConnectionsHandler) OnLostLeadership() {
 	h.isLeader = false
 }
 
+func (h *MqttConnectionsHandler) OnPublish(args ...interface{}) {
+	addr := args[0].(string)
+	topic := args[1].(string)
+	qos := args[2].(byte)
+	retained := args[3].(bool)
+	payload := args[4]
+
+	qdb.Trace("[MqttConnectionsHandler::OnPublish] Publishing message to server: %s, topic: %s, qos: %d, retained: %v, payload: %v", addr, topic, qos, retained, payload)
+
+	h.addrToClient[addr].Publish(topic, qos, retained, payload)
+}
+
 func (h *MqttConnectionsHandler) Init() {
 }
 
