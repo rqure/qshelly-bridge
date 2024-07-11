@@ -34,7 +34,7 @@ func (d *Aqara_LLKZMK12LM) GetNotificationConfig() []*qdb.DatabaseNotificationCo
 func (d *Aqara_LLKZMK12LM) GetSubscriptionConfig(entity qdb.IEntity) []*MqttSubscriptionConfig {
 	return []*MqttSubscriptionConfig{
 		{
-			Topic: entity.GetField("Topic").PullValue(&qdb.String{}).(*qdb.String).Raw,
+			Topic: entity.GetField("Topic").PullString(),
 			Qos:   0,
 		},
 	}

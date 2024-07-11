@@ -65,7 +65,7 @@ func (h *MqttConnectionsHandler) OnBecameLeader() {
 		})
 
 		for _, server := range servers {
-			addr := server.GetField("Address").PullValue(&qdb.String{}).(*qdb.String).Raw
+			addr := server.GetField("Address").PullString()
 			opts := mqtt.NewClientOptions()
 			opts.AddBroker(addr)
 			opts.AutoReconnect = true
