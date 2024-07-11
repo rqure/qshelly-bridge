@@ -22,6 +22,8 @@ func main() {
 
 	dbWorker := qdb.NewDatabaseWorker(db)
 	leaderElectionWorker := qdb.NewLeaderElectionWorker(db)
+	deviceCommandHandler := NewDeviceCommandHandler(db)
+	mqttConnectionsHandler := NewMqttConnectionsHandler(db)
 	schemaValidator := qdb.NewSchemaValidator(db)
 
 	schemaValidator.AddEntity("Root", "SchemaUpdateTrigger")
@@ -35,6 +37,15 @@ func main() {
 
 	dbWorker.Signals.Connected.Connect(qdb.Slot(leaderElectionWorker.OnDatabaseConnected))
 	dbWorker.Signals.Disconnected.Connect(qdb.Slot(leaderElectionWorker.OnDatabaseDisconnected))
+	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(deviceCommandHandler.OnSchemaUpdated))
+	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(mqttConnectionsHandler.OnSchemaUpdated))
+	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(deviceCommandHandler.OnBecameLeader))
+	leaderElectionWorker.Signals.BecameFollower.Connect(qdb.Slot(deviceCommandHandler.OnLostLeadership))
+	leaderElectionWorker.Signals.BecameUnavailable.Connect(qdb.Slot(deviceCommandHandler.OnLostLeadership))
+	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(mqttConnectionsHandler.OnBecameLeader))
+	leaderElectionWorker.Signals.BecameFollower.Connect(qdb.Slot(mqttConnectionsHandler.OnLostLeadership))
+	leaderElectionWorker.Signals.BecameUnavailable.Connect(qdb.Slot(mqttConnectionsHandler.OnLostLeadership))
+	deviceCommandHandler.Signals.Publish.Connect(qdb.SlotWithArgs(mqttConnectionsHandler.OnPublish))
 
 	// Create a new application configuration
 	config := qdb.ApplicationConfig{
