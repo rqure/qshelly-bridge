@@ -22,7 +22,7 @@ type IMqttDevice interface {
 	// causes us to publish a message to the MQTT broker
 	ProcessNotification(notification *qdb.DatabaseNotification, publish *qdb.Signal)
 
-	GetNotificationConfig() *qdb.DatabaseNotificationConfig
+	GetNotificationConfig() []*qdb.DatabaseNotificationConfig
 	GetSubscriptionConfig(entity qdb.IEntity) []*MqttSubscriptionConfig
 }
 

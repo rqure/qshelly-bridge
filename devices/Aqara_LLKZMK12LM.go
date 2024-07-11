@@ -27,7 +27,7 @@ func (d *Aqara_LLKZMK12LM) ProcessMessage(message mqtt.Message, db qdb.IDatabase
 func (d *Aqara_LLKZMK12LM) ProcessNotification(notification *qdb.DatabaseNotification, publish *qdb.Signal) {
 }
 
-func (d *Aqara_LLKZMK12LM) GetNotificationConfig() *qdb.DatabaseNotificationConfig {
+func (d *Aqara_LLKZMK12LM) GetNotificationConfig() []*qdb.DatabaseNotificationConfig {
 	return nil
 }
 
