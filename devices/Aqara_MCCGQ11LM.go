@@ -20,14 +20,17 @@ func (d *Aqara_MCCGQ11LM) GetModel() string {
 	return "AqaraMCCGQ11LM"
 }
 
-func (d *Aqara_MCCGQ11LM) ProcessMessage(message mqtt.Message, db qdb.IDatabase) {
+func (d *Aqara_MCCGQ11LM) ProcessMessage(message mqtt.Message, entity qdb.IEntity) {
+	entity.GetField("Battery").PushValue(&qdb.Int{Raw: 100})
 }
 
 func (d *Aqara_MCCGQ11LM) ProcessNotification(notification *qdb.DatabaseNotification, publish *qdb.Signal) {
+	// Read only device -- no notification expected
 }
 
 func (d *Aqara_MCCGQ11LM) GetNotificationConfig() []*qdb.DatabaseNotificationConfig {
-	return nil
+	// Read only device -- no notification config necessary
+	return []*qdb.DatabaseNotificationConfig{}
 }
 
 func (d *Aqara_MCCGQ11LM) GetSubscriptionConfig(entity qdb.IEntity) []*MqttSubscriptionConfig {

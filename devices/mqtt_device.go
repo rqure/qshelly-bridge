@@ -15,7 +15,7 @@ type IMqttDevice interface {
 
 	// Process messages from the MQTT broker
 	// The idea is that you store the message content in the database
-	ProcessMessage(message mqtt.Message, db qdb.IDatabase)
+	ProcessMessage(message mqtt.Message, entity qdb.IEntity)
 
 	// Process notifications from the database
 	// Ther idea is that notifications are device commands that essentially

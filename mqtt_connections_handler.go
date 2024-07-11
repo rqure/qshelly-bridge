@@ -202,18 +202,19 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Mes
 
 	// Not the most performant algorithm but should work for now
 	for _, model := range devices.GetAllModels() {
-		devs := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
+		entities := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
 			EntityType: model,
 			Conditions: []qdb.FieldConditionEval{
 				qdb.NewStringCondition().Where("Server->Address").IsEqualTo(&qdb.String{Raw: addr}),
 			},
 		})
 
-		for _, device := range devs {
-			configs := devices.MakeMqttDevice(model).GetSubscriptionConfig(device)
+		for _, entity := range entities {
+			device := devices.MakeMqttDevice(model)
+			configs := device.GetSubscriptionConfig(entity)
 			for _, config := range configs {
 				if config.Topic == msg.Topic() {
-					devices.MakeMqttDevice(model).ProcessMessage(msg, h.db)
+					device.ProcessMessage(msg, entity)
 				}
 			}
 		}

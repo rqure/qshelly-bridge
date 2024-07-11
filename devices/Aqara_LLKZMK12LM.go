@@ -21,7 +21,7 @@ func (d *Aqara_LLKZMK12LM) GetModel() string {
 	return "AqaraLLKZMK12LM"
 }
 
-func (d *Aqara_LLKZMK12LM) ProcessMessage(message mqtt.Message, db qdb.IDatabase) {
+func (d *Aqara_LLKZMK12LM) ProcessMessage(message mqtt.Message, entity qdb.IEntity) {
 }
 
 func (d *Aqara_LLKZMK12LM) ProcessNotification(notification *qdb.DatabaseNotification, publish *qdb.Signal) {
