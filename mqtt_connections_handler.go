@@ -41,10 +41,10 @@ func (e *MqttEvent) GetAddress() string {
 // Used to manage connections to MQTT servers
 type MqttConnectionsHandler struct {
 	db           qdb.IDatabase
-	hasInit      bool
 	isLeader     bool
 	addrToClient map[string]mqtt.Client
 	events       chan IMqttEvent
+	tokens       []string
 }
 
 func NewMqttConnectionsHandler(db qdb.IDatabase) *MqttConnectionsHandler {
@@ -55,39 +55,71 @@ func NewMqttConnectionsHandler(db qdb.IDatabase) *MqttConnectionsHandler {
 	}
 }
 
+func (h *MqttConnectionsHandler) Reinitialize() {
+	for _, token := range h.tokens {
+		h.db.Unnotify(token)
+	}
+
+	h.tokens = []string{}
+
+	h.tokens = append(h.tokens, h.db.Notify(&qdb.DatabaseNotificationConfig{
+		Type:           "MqttServer",
+		Field:          "Address",
+		NotifyOnChange: true,
+		ContextFields: []string{
+			"Enabled",
+		},
+	}, h.onServerAddressChanged))
+
+	servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
+		EntityType: "MqttServer",
+		Conditions: []qdb.FieldConditionEval{},
+	})
+
+	for _, server := range servers {
+		addr := server.GetField("Address").PullString()
+		if _, ok := h.addrToClient[addr]; ok {
+			continue
+		}
+
+		opts := mqtt.NewClientOptions()
+		opts.AddBroker(addr)
+		opts.AutoReconnect = true
+		opts.OnConnect = func(client mqtt.Client) {
+			h.events <- &MqttEvent{
+				EventType: ConnectionEstablished,
+				Address:   addr,
+			}
+		}
+		opts.OnConnectionLost = func(client mqtt.Client, err error) {
+			h.events <- &MqttEvent{
+				EventType: ConnectionLost,
+				Address:   addr,
+				EventData: err,
+			}
+		}
+		h.addrToClient[addr] = mqtt.NewClient(opts)
+
+		if server.GetField("Enabled").PullBool() {
+			h.addrToClient[addr].Connect()
+		}
+	}
+}
+
+func (h *MqttConnectionsHandler) OnSchemaUpdated() {
+	if !h.isLeader {
+		return
+	}
+
+	// In case more servers are configured, we should reinitialize to capture
+	// notifications for any new servers
+	h.Reinitialize()
+}
+
 func (h *MqttConnectionsHandler) OnBecameLeader() {
 	h.isLeader = true
 
-	if !h.hasInit {
-		// get all mqtt servers from the database
-		servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
-			EntityType: "MqttServer",
-		})
-
-		for _, server := range servers {
-			addr := server.GetField("Address").PullString()
-			opts := mqtt.NewClientOptions()
-			opts.AddBroker(addr)
-			opts.AutoReconnect = true
-			opts.OnConnect = func(client mqtt.Client) {
-				h.events <- &MqttEvent{
-					EventType: ConnectionEstablished,
-					Address:   addr,
-				}
-			}
-			opts.OnConnectionLost = func(client mqtt.Client, err error) {
-				h.events <- &MqttEvent{
-					EventType: ConnectionLost,
-					Address:   addr,
-					EventData: err,
-				}
-			}
-			h.addrToClient[addr] = mqtt.NewClient(opts)
-			h.addrToClient[addr].Connect()
-		}
-
-		h.hasInit = true
-	}
+	h.Reinitialize()
 }
 
 func (h *MqttConnectionsHandler) OnLostLeadership() {
@@ -108,7 +140,28 @@ func (h *MqttConnectionsHandler) OnPublish(args ...interface{}) {
 	qdb.Trace("[MqttConnectionsHandler::OnPublish] Publishing message to server: %s, topic: %s, qos: %d, retained: %v, payload: %v", addr, topic, qos, retained, payload)
 
 	if client, ok := h.addrToClient[addr]; ok {
+		servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
+			EntityType: "MqttServer",
+			Conditions: []qdb.FieldConditionEval{},
+		})
+
+		if !client.IsConnected() {
+			qdb.Warn("[MqttConnectionsHandler::OnPublish] Client not connected for address: %s", addr)
+
+			for _, server := range servers {
+				totalDropped := server.GetField("TotalDropped")
+				totalDropped.PushInt(totalDropped.PullInt() + 1)
+			}
+
+			return
+		}
+
 		client.Publish(topic, qos, retained, payload)
+
+		for _, server := range servers {
+			totalSent := server.GetField("TotalSent")
+			totalSent.PushInt(totalSent.PullInt() + 1)
+		}
 	} else {
 		qdb.Error("[MqttConnectionsHandler::OnPublish] No client found for address: %s", addr)
 	}
@@ -144,18 +197,18 @@ func (h *MqttConnectionsHandler) DoWork() {
 	}
 }
 
-func (h *MqttConnectionsHandler) ProcessNotification(notification *qdb.DatabaseNotification) {
-
-}
-
 func (h *MqttConnectionsHandler) onMqttServerConnected(addr string) {
 	if !h.isLeader {
 		return
 	}
 
-	client := h.addrToClient[addr]
 	qdb.Info("[MqttConnectionsHandler::onMqttServerConnected] Connected to server: %s", addr)
+	if _, ok := h.addrToClient[addr]; !ok {
+		qdb.Warn("[MqttConnectionsHandler::onMqttServerConnected] No client found for address: %s", addr)
+		return
+	}
 
+	client := h.addrToClient[addr]
 	servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
 		EntityType: "MqttServer",
 		Conditions: []qdb.FieldConditionEval{
@@ -196,6 +249,10 @@ func (h *MqttConnectionsHandler) onMqttServerDisconnected(addr string, err error
 	}
 
 	qdb.Warn("[MqttConnectionsHandler::onMqttServerDisconnected] Disconnected from server: %s (%v)", addr, err)
+	if _, ok := h.addrToClient[addr]; !ok {
+		qdb.Warn("[MqttConnectionsHandler::onMqttServerDisconnected] No client found for address: %s", addr)
+		return
+	}
 
 	servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
 		EntityType: "MqttServer",
@@ -215,6 +272,22 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Mes
 	}
 
 	qdb.Trace("[MqttConnectionsHandler::onMqttMessageReceived] Received message from server: %s (%v)", addr, msg)
+	if _, ok := h.addrToClient[addr]; !ok {
+		qdb.Warn("[MqttConnectionsHandler::onMqttMessageReceived] No client found for address: %s", addr)
+		return
+	}
+
+	servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
+		EntityType: "MqttServer",
+		Conditions: []qdb.FieldConditionEval{
+			qdb.NewStringCondition().Where("Address").IsEqualTo(&qdb.String{Raw: addr}),
+		},
+	})
+
+	for _, server := range servers {
+		totalReceived := server.GetField("TotalReceived")
+		totalReceived.PushInt(totalReceived.PullInt() + 1)
+	}
 
 	// Not the most performant algorithm but should work for now
 	for _, model := range devices.GetAllModels() {
@@ -234,5 +307,67 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Mes
 				}
 			}
 		}
+	}
+}
+
+func (h *MqttConnectionsHandler) onServerAddressChanged(notification *qdb.DatabaseNotification) {
+	if !h.isLeader {
+		return
+	}
+
+	prev := &qdb.String{}
+	curr := &qdb.String{}
+	enabled := qdb.Bool{}
+
+	err := notification.Previous.Value.UnmarshalTo(prev)
+	if err != nil {
+		qdb.Error("[MqttConnectionsHandler::onServerAddressChanged] Error parsing previous value: %v", err)
+		return
+	}
+
+	err = notification.Current.Value.UnmarshalTo(curr)
+	if err != nil {
+		qdb.Error("[MqttConnectionsHandler::onServerAddressChanged] Error parsing current value: %v", err)
+		return
+	}
+
+	err = notification.Context[0].Value.UnmarshalTo(&enabled)
+	if err != nil {
+		qdb.Error("[MqttConnectionsHandler::onServerAddressChanged] Error parsing enabled value: %v", err)
+		return
+	}
+
+	if client, ok := h.addrToClient[prev.Raw]; ok {
+		if client.IsConnected() {
+			client.Disconnect(0)
+		}
+
+		delete(h.addrToClient, prev.Raw)
+	}
+
+	if _, ok := h.addrToClient[curr.Raw]; ok {
+		return
+	}
+
+	opts := mqtt.NewClientOptions()
+	opts.AddBroker(curr.Raw)
+	opts.AutoReconnect = true
+	opts.OnConnect = func(client mqtt.Client) {
+		h.events <- &MqttEvent{
+			EventType: ConnectionEstablished,
+			Address:   curr.Raw,
+		}
+	}
+	opts.OnConnectionLost = func(client mqtt.Client, err error) {
+		h.events <- &MqttEvent{
+			EventType: ConnectionLost,
+			Address:   curr.Raw,
+			EventData: err,
+		}
+	}
+	h.addrToClient[curr.Raw] = mqtt.NewClient(opts)
+
+	if enabled.Raw {
+		h.addrToClient[curr.Raw].Connect()
 	}
 }

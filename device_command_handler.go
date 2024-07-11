@@ -39,6 +39,10 @@ func (h *DeviceCommandHandler) Reinitialize() {
 }
 
 func (h *DeviceCommandHandler) OnSchemaUpdated() {
+	if !h.isLeader {
+		return
+	}
+
 	// In case more devices are configured, we should reinitialize to capture
 	// notifications for any new devices
 	h.Reinitialize()
