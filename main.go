@@ -26,7 +26,7 @@ func main() {
 
 	schemaValidator.AddEntity("Root", "SchemaUpdateTrigger")
 	schemaValidator.AddEntity("MqttController")
-	schemaValidator.AddEntity("MqttServer", "Address", "ConnectionStatus", "TotalSent", "TotalReceived", "TotalDropped")
+	schemaValidator.AddEntity("MqttServer", "Address", "ConnectionStatus", "Enabled", "TotalSent", "TotalReceived", "TotalDropped")
 
 	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(schemaValidator.OnSchemaUpdated))
 	leaderElectionWorker.AddAvailabilityCriteria(func() bool {
