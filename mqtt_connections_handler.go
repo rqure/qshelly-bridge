@@ -71,6 +71,15 @@ func (h *MqttConnectionsHandler) Reinitialize() {
 		},
 	}, h.onServerAddressChanged))
 
+	h.tokens = append(h.tokens, h.db.Notify(&qdb.DatabaseNotificationConfig{
+		Type:           "MqttServer",
+		Field:          "Enabled",
+		NotifyOnChange: true,
+		ContextFields: []string{
+			"Address",
+		},
+	}, h.onServerEnableChanged))
+
 	servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
 		EntityType: "MqttServer",
 		Conditions: []qdb.FieldConditionEval{},
@@ -317,7 +326,7 @@ func (h *MqttConnectionsHandler) onServerAddressChanged(notification *qdb.Databa
 
 	prev := &qdb.String{}
 	curr := &qdb.String{}
-	enabled := qdb.Bool{}
+	enabled := &qdb.Bool{}
 
 	err := notification.Previous.Value.UnmarshalTo(prev)
 	if err != nil {
@@ -331,7 +340,7 @@ func (h *MqttConnectionsHandler) onServerAddressChanged(notification *qdb.Databa
 		return
 	}
 
-	err = notification.Context[0].Value.UnmarshalTo(&enabled)
+	err = notification.Context[0].Value.UnmarshalTo(enabled)
 	if err != nil {
 		qdb.Error("[MqttConnectionsHandler::onServerAddressChanged] Error parsing enabled value: %v", err)
 		return
@@ -369,5 +378,40 @@ func (h *MqttConnectionsHandler) onServerAddressChanged(notification *qdb.Databa
 
 	if enabled.Raw {
 		h.addrToClient[curr.Raw].Connect()
+	}
+}
+
+func (h *MqttConnectionsHandler) onServerEnableChanged(notification *qdb.DatabaseNotification) {
+	if !h.isLeader {
+		return
+	}
+
+	addr := &qdb.String{}
+	enabled := &qdb.Bool{}
+
+	err := notification.Current.Value.UnmarshalTo(enabled)
+	if err != nil {
+		qdb.Error("[MqttConnectionsHandler::onServerEnableChanged] Error parsing enabled value: %v", err)
+		return
+	}
+
+	err = notification.Context[0].Value.UnmarshalTo(addr)
+	if err != nil {
+		qdb.Error("[MqttConnectionsHandler::onServerEnableChanged] Error parsing address value: %v", err)
+		return
+	}
+
+	if client, ok := h.addrToClient[addr.Raw]; ok {
+		if enabled.Raw {
+			if !client.IsConnected() {
+				client.Connect()
+			}
+		} else {
+			if client.IsConnected() {
+				client.Disconnect(0)
+			}
+		}
+	} else {
+		qdb.Error("[MqttConnectionsHandler::onServerEnableChanged] No client found for address: %s", addr.Raw)
 	}
 }
