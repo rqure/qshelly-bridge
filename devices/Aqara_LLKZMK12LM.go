@@ -38,25 +38,25 @@ import (
     }
 */
 type Aqara_LLKZMK12LM struct {
-	Consumption       float64
-	Current           int64
-	DeviceTemperature int64
-	Energy            float64
-	Interlock         string
-	LedDisabledNight  bool
-	LinkQuality       int64
-	Mode              string
-	OperationModeL1   string
-	OperationModeL2   string
-	Power             int64
-	PowerOnBehavior   string
-	PowerOutageCount  int64
-	PulseLength       int64
-	State             string
-	StateL1           string
-	StateL2           string
-	SwitchType        string
-	Voltage           float64
+	Consumption       float64 `json:"consumption"`
+	Current           int64   `json:"current"`
+	DeviceTemperature int64   `json:"device_temperature"`
+	Energy            float64 `json:"energy"`
+	Interlock         string  `json:"interlock"`
+	LedDisabledNight  bool    `json:"led_disabled_night"`
+	LinkQuality       int64   `json:"linkquality"`
+	Mode              string  `json:"mode"`
+	OperationModeL1   string  `json:"operation_mode_l1"`
+	OperationModeL2   string  `json:"operation_mode_l2"`
+	Power             int64   `json:"power"`
+	PowerOnBehavior   string  `json:"power_on_behavior"`
+	PowerOutageCount  int64   `json:"power_outage_count"`
+	PulseLength       int64   `json:"pulse_length"`
+	State             string  `json:"state"`
+	StateL1           string  `json:"state_l1"`
+	StateL2           string  `json:"state_l2"`
+	SwitchType        string  `json:"switch_type"`
+	Voltage           float64 `json:"voltage"`
 }
 
 func (d *Aqara_LLKZMK12LM) GetModel() string {
