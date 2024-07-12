@@ -16,13 +16,13 @@ import (
     power_outage_count, trigger_count, linkquality
 */
 type Aqara_MCCGQ11LM struct {
-	Battery           int64
-	Contact           bool
-	DeviceTemperature int64
-	Voltage           int64
-	PowerOutageCount  int64
-	LinkQuality       int64
-	TriggerCount      int64
+	Battery           int64 `json:"battery"`
+	Contact           bool  `json:"contact"`
+	DeviceTemperature int64 `json:"device_temperature"`
+	Voltage           int64 `json:"voltage"`
+	PowerOutageCount  int64 `json:"power_outage_count"`
+	LinkQuality       int64 `json:"linkquality"`
+	TriggerCount      int64 `json:"trigger_count"`
 }
 
 func (d *Aqara_MCCGQ11LM) GetModel() string {
