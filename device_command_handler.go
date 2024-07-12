@@ -17,7 +17,7 @@ type DeviceCommandHandler struct {
 	Signals  DeviceCommandHandlerSignals
 }
 
-func NewDeviceSynchronizer(db qdb.IDatabase) *DeviceCommandHandler {
+func NewDeviceCommandHandler(db qdb.IDatabase) *DeviceCommandHandler {
 	return &DeviceCommandHandler{
 		db: db,
 	}
@@ -39,6 +39,10 @@ func (h *DeviceCommandHandler) Reinitialize() {
 }
 
 func (h *DeviceCommandHandler) OnSchemaUpdated() {
+	if !h.isLeader {
+		return
+	}
+
 	// In case more devices are configured, we should reinitialize to capture
 	// notifications for any new devices
 	h.Reinitialize()
