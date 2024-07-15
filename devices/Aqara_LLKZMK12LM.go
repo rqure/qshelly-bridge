@@ -116,17 +116,32 @@ func (d *Aqara_LLKZMK12LM) ProcessNotification(notification *qdb.DatabaseNotific
 
 	switch notification.Current.Name {
 	case "GetTrigger":
-		publish.Emit(addr.Raw, topic.Raw+"/get", qos, retained, map[string]interface{}{
+		payload, err := json.Marshal(map[string]interface{}{
 			"state": "",
 		})
+		if err != nil {
+			qdb.Error("[Aqara_LLKZMK12LM::ProcessNotification] Error marshalling payload: %v", err)
+			return
+		}
+		publish.Emit(addr.Raw, topic.Raw+"/get", qos, retained, payload)
 	case "StateOnTrigger":
-		publish.Emit(addr.Raw, topic.Raw+"/set", qos, retained, map[string]interface{}{
+		payload, err := json.Marshal(map[string]interface{}{
 			"state_l1": "ON",
 		})
+		if err != nil {
+			qdb.Error("[Aqara_LLKZMK12LM::ProcessNotification] Error marshalling payload: %v", err)
+			return
+		}
+		publish.Emit(addr.Raw, topic.Raw+"/set", qos, retained, payload)
 	case "StateOffTrigger":
-		publish.Emit(addr.Raw, topic.Raw+"/set", qos, retained, map[string]interface{}{
+		payload, err := json.Marshal(map[string]interface{}{
 			"state_l1": "OFF",
 		})
+		if err != nil {
+			qdb.Error("[Aqara_LLKZMK12LM::ProcessNotification] Error marshalling payload: %v", err)
+			return
+		}
+		publish.Emit(addr.Raw, topic.Raw+"/set", qos, retained, payload)
 	}
 }
 

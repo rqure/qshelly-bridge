@@ -70,15 +70,14 @@ func (d *Aqara_MCCGQ11LM) ProcessNotification(notification *qdb.DatabaseNotifica
 
 	switch notification.Current.Name {
 	case "GetTrigger":
-		publish.Emit(addr.Raw, topic.Raw+"/get", qos, retained, map[string]interface{}{
-			"battery":            "",
-			"contact":            "",
-			"device_temperature": "",
-			"voltage":            "",
-			"power_outage_count": "",
-			"linkquality":        "",
-			"trigger_count":      "",
+		payload, err := json.Marshal(map[string]interface{}{
+			"contact": "",
 		})
+		if err != nil {
+			qdb.Error("[Aqara_MCCGQ11LM::ProcessNotification] Error parsing notification payload: %v", err)
+			return
+		}
+		publish.Emit(addr.Raw, topic.Raw+"/get", qos, retained, payload)
 	}
 }
 
