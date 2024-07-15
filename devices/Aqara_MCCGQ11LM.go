@@ -46,12 +46,53 @@ func (d *Aqara_MCCGQ11LM) ProcessMessage(message mqtt.Message, entity qdb.IEntit
 }
 
 func (d *Aqara_MCCGQ11LM) ProcessNotification(notification *qdb.DatabaseNotification, publish *qdb.Signal) {
-	// Read only device -- no notification expected
+	if len(notification.Context) < 2 {
+		qdb.Error("[Aqara_MCCGQ11LM::ProcessNotification] Missing notification context: %v", notification.Context)
+		return
+	}
+
+	addr := &qdb.String{}
+	topic := &qdb.String{}
+	qos := uint8(0)
+	retained := false
+
+	err := notification.Context[0].Value.UnmarshalTo(addr)
+	if err != nil {
+		qdb.Error("[Aqara_MCCGQ11LM::ProcessNotification] Error parsing notification context: %v", err)
+		return
+	}
+
+	err = notification.Context[1].Value.UnmarshalTo(topic)
+	if err != nil {
+		qdb.Error("[Aqara_MCCGQ11LM::ProcessNotification] Error parsing notification context: %v", err)
+		return
+	}
+
+	switch notification.Current.Name {
+	case "GetTrigger":
+		publish.Emit(addr.Raw, topic.Raw+"/get", qos, retained, map[string]interface{}{
+			"battery":            "",
+			"contact":            "",
+			"device_temperature": "",
+			"voltage":            "",
+			"power_outage_count": "",
+			"linkquality":        "",
+			"trigger_count":      "",
+		})
+	}
 }
 
 func (d *Aqara_MCCGQ11LM) GetNotificationConfig() []*qdb.DatabaseNotificationConfig {
-	// Read only device -- no notification config necessary
-	return []*qdb.DatabaseNotificationConfig{}
+	return []*qdb.DatabaseNotificationConfig{
+		{
+			Type:  d.GetModel(),
+			Field: "GetTrigger",
+			ContextFields: []string{
+				"Server->Address",
+				"Topic",
+			},
+		},
+	}
 }
 
 func (d *Aqara_MCCGQ11LM) GetSubscriptionConfig(entity qdb.IEntity) []*MqttSubscriptionConfig {

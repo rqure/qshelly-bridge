@@ -99,7 +99,7 @@ func (d *Aqara_LLKZMK12LM) ProcessNotification(notification *qdb.DatabaseNotific
 
 	addr := &qdb.String{}
 	topic := &qdb.String{}
-	qos := 0
+	qos := uint8(0)
 	retained := false
 
 	err := notification.Context[0].Value.UnmarshalTo(addr)
@@ -115,6 +115,10 @@ func (d *Aqara_LLKZMK12LM) ProcessNotification(notification *qdb.DatabaseNotific
 	}
 
 	switch notification.Current.Name {
+	case "GetTrigger":
+		publish.Emit(addr.Raw, topic.Raw+"/get", qos, retained, map[string]interface{}{
+			"state": "",
+		})
 	case "StateOnTrigger":
 		publish.Emit(addr.Raw, topic.Raw+"/set", qos, retained, map[string]interface{}{
 			"state_l1": "ON",
@@ -139,6 +143,14 @@ func (d *Aqara_LLKZMK12LM) GetNotificationConfig() []*qdb.DatabaseNotificationCo
 		{
 			Type:  d.GetModel(),
 			Field: "StateOffTrigger",
+			ContextFields: []string{
+				"Server->Address",
+				"Topic",
+			},
+		},
+		{
+			Type:  d.GetModel(),
+			Field: "GetTrigger",
 			ContextFields: []string{
 				"Server->Address",
 				"Topic",
