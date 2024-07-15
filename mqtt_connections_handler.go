@@ -147,7 +147,7 @@ func (h *MqttConnectionsHandler) OnPublish(args ...interface{}) {
 	retained := args[3].(bool)
 	payload := args[4]
 
-	qdb.Trace("[MqttConnectionsHandler::OnPublish] Publishing message to server: %s, topic: %s, qos: %d, retained: %v, payload: %v", addr, topic, qos, retained, payload)
+	qdb.Info("[MqttConnectionsHandler::OnPublish] Publishing message to server: %s, topic: %s, qos: %d, retained: %v, payload: %v", addr, topic, qos, retained, payload)
 
 	if client, ok := h.addrToClient[addr]; ok {
 		servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
