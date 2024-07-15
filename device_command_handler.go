@@ -13,27 +13,28 @@ type DeviceCommandHandlerSignals struct {
 type DeviceCommandHandler struct {
 	db       qdb.IDatabase
 	isLeader bool
-	tokens   []string
+	tokens   []qdb.INotificationToken
 	Signals  DeviceCommandHandlerSignals
 }
 
 func NewDeviceCommandHandler(db qdb.IDatabase) *DeviceCommandHandler {
 	return &DeviceCommandHandler{
-		db: db,
+		db:     db,
+		tokens: []qdb.INotificationToken{},
 	}
 }
 
 func (h *DeviceCommandHandler) Reinitialize() {
 	for _, token := range h.tokens {
-		h.db.Unnotify(token)
+		token.Unbind()
 	}
 
-	h.tokens = []string{}
+	h.tokens = []qdb.INotificationToken{}
 
 	for _, model := range devices.GetAllModels() {
 		configs := devices.MakeMqttDevice(model).GetNotificationConfig()
 		for _, config := range configs {
-			h.tokens = append(h.tokens, h.db.Notify(config, h.ProcessNotification))
+			h.tokens = append(h.tokens, h.db.Notify(config, qdb.NewNotificationCallback(h.ProcessNotification)))
 		}
 	}
 }

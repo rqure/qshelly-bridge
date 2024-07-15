@@ -44,7 +44,7 @@ type MqttConnectionsHandler struct {
 	isLeader     bool
 	addrToClient map[string]mqtt.Client
 	events       chan IMqttEvent
-	tokens       []string
+	tokens       []qdb.INotificationToken
 }
 
 func NewMqttConnectionsHandler(db qdb.IDatabase) *MqttConnectionsHandler {
@@ -52,15 +52,16 @@ func NewMqttConnectionsHandler(db qdb.IDatabase) *MqttConnectionsHandler {
 		db:           db,
 		addrToClient: make(map[string]mqtt.Client),
 		events:       make(chan IMqttEvent, 1024),
+		tokens:       []qdb.INotificationToken{},
 	}
 }
 
 func (h *MqttConnectionsHandler) Reinitialize() {
 	for _, token := range h.tokens {
-		h.db.Unnotify(token)
+		token.Unbind()
 	}
 
-	h.tokens = []string{}
+	h.tokens = []qdb.INotificationToken{}
 
 	h.tokens = append(h.tokens, h.db.Notify(&qdb.DatabaseNotificationConfig{
 		Type:           "MqttServer",
@@ -69,7 +70,7 @@ func (h *MqttConnectionsHandler) Reinitialize() {
 		ContextFields: []string{
 			"Enabled",
 		},
-	}, h.onServerAddressChanged))
+	}, qdb.NewNotificationCallback(h.onServerAddressChanged)))
 
 	h.tokens = append(h.tokens, h.db.Notify(&qdb.DatabaseNotificationConfig{
 		Type:           "MqttServer",
@@ -78,7 +79,7 @@ func (h *MqttConnectionsHandler) Reinitialize() {
 		ContextFields: []string{
 			"Address",
 		},
-	}, h.onServerEnableChanged))
+	}, qdb.NewNotificationCallback(h.onServerEnableChanged)))
 
 	servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
 		EntityType: "MqttServer",
