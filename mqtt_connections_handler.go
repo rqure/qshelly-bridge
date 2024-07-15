@@ -89,6 +89,9 @@ func (h *MqttConnectionsHandler) Reinitialize() {
 	for _, server := range servers {
 		addr := server.GetField("Address").PullString()
 		if _, ok := h.addrToClient[addr]; ok {
+			if server.GetField("Enabled").PullBool() && !h.addrToClient[addr].IsConnected() && h.isLeader {
+				h.addrToClient[addr].Connect()
+			}
 			continue
 		}
 
@@ -111,7 +114,9 @@ func (h *MqttConnectionsHandler) Reinitialize() {
 		h.addrToClient[addr] = mqtt.NewClient(opts)
 
 		if server.GetField("Enabled").PullBool() {
-			h.addrToClient[addr].Connect()
+			if h.isLeader {
+				h.addrToClient[addr].Connect()
+			}
 		}
 	}
 }
@@ -134,6 +139,23 @@ func (h *MqttConnectionsHandler) OnBecameLeader() {
 
 func (h *MqttConnectionsHandler) OnLostLeadership() {
 	h.isLeader = false
+
+	for _, client := range h.addrToClient {
+		if client.IsConnected() {
+			client.Disconnect(0)
+		}
+
+		servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
+			EntityType: "MqttServer",
+			Conditions: []qdb.FieldConditionEval{
+				qdb.NewBoolCondition().Where("Enabled").IsEqualTo(&qdb.Bool{Raw: true}),
+			},
+		})
+
+		for _, server := range servers {
+			server.GetField("ConnectionStatus").PushValue(&qdb.ConnectionState{Raw: qdb.ConnectionState_DISCONNECTED})
+		}
+	}
 }
 
 func (h *MqttConnectionsHandler) OnPublish(args ...interface{}) {

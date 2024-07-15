@@ -40,11 +40,9 @@ func main() {
 	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(deviceCommandHandler.OnSchemaUpdated))
 	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(mqttConnectionsHandler.OnSchemaUpdated))
 	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(deviceCommandHandler.OnBecameLeader))
-	leaderElectionWorker.Signals.BecameFollower.Connect(qdb.Slot(deviceCommandHandler.OnLostLeadership))
-	leaderElectionWorker.Signals.BecameUnavailable.Connect(qdb.Slot(deviceCommandHandler.OnLostLeadership))
+	leaderElectionWorker.Signals.LosingLeadership.Connect(qdb.Slot(deviceCommandHandler.OnLostLeadership))
 	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(mqttConnectionsHandler.OnBecameLeader))
-	leaderElectionWorker.Signals.BecameFollower.Connect(qdb.Slot(mqttConnectionsHandler.OnLostLeadership))
-	leaderElectionWorker.Signals.BecameUnavailable.Connect(qdb.Slot(mqttConnectionsHandler.OnLostLeadership))
+	leaderElectionWorker.Signals.LosingLeadership.Connect(qdb.Slot(mqttConnectionsHandler.OnLostLeadership))
 	deviceCommandHandler.Signals.Publish.Connect(qdb.SlotWithArgs(mqttConnectionsHandler.OnPublish))
 
 	// Create a new application configuration
