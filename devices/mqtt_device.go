@@ -30,6 +30,7 @@ func GetAllDevices() []IMqttDevice {
 	devs := []IMqttDevice{
 		&Aqara_LLKZMK12LM{},
 		&Aqara_MCCGQ11LM{},
+		&Ikea_LED2005R5{},
 	}
 
 	return devs
