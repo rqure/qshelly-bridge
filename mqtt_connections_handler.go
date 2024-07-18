@@ -347,27 +347,9 @@ func (h *MqttConnectionsHandler) onServerAddressChanged(notification *qdb.Databa
 		return
 	}
 
-	prev := &qdb.String{}
-	curr := &qdb.String{}
-	enabled := &qdb.Bool{}
-
-	err := notification.Previous.Value.UnmarshalTo(prev)
-	if err != nil {
-		qdb.Error("[MqttConnectionsHandler::onServerAddressChanged] Error parsing previous value: %v", err)
-		return
-	}
-
-	err = notification.Current.Value.UnmarshalTo(curr)
-	if err != nil {
-		qdb.Error("[MqttConnectionsHandler::onServerAddressChanged] Error parsing current value: %v", err)
-		return
-	}
-
-	err = notification.Context[0].Value.UnmarshalTo(enabled)
-	if err != nil {
-		qdb.Error("[MqttConnectionsHandler::onServerAddressChanged] Error parsing enabled value: %v", err)
-		return
-	}
+	prev := qdb.ValueCast[*qdb.String](notification.Previous.Value)
+	curr := qdb.ValueCast[*qdb.String](notification.Current.Value)
+	enabled := qdb.ValueCast[*qdb.Bool](notification.Context[0].Value)
 
 	if client, ok := h.addrToClient[prev.Raw]; ok {
 		if client.IsConnected() {
@@ -409,20 +391,8 @@ func (h *MqttConnectionsHandler) onServerEnableChanged(notification *qdb.Databas
 		return
 	}
 
-	addr := &qdb.String{}
-	enabled := &qdb.Bool{}
-
-	err := notification.Current.Value.UnmarshalTo(enabled)
-	if err != nil {
-		qdb.Error("[MqttConnectionsHandler::onServerEnableChanged] Error parsing enabled value: %v", err)
-		return
-	}
-
-	err = notification.Context[0].Value.UnmarshalTo(addr)
-	if err != nil {
-		qdb.Error("[MqttConnectionsHandler::onServerEnableChanged] Error parsing address value: %v", err)
-		return
-	}
+	addr := qdb.ValueCast[*qdb.String](notification.Context[0].Value)
+	enabled := qdb.ValueCast[*qdb.Bool](notification.Current.Value)
 
 	if client, ok := h.addrToClient[addr.Raw]; ok {
 		if enabled.Raw {

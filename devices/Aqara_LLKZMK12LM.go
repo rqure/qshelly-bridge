@@ -97,22 +97,10 @@ func (d *Aqara_LLKZMK12LM) ProcessNotification(notification *qdb.DatabaseNotific
 		return
 	}
 
-	addr := &qdb.String{}
-	topic := &qdb.String{}
+	addr := qdb.ValueCast[*qdb.String](notification.Context[0].Value)
+	topic := qdb.ValueCast[*qdb.String](notification.Context[1].Value)
 	qos := uint8(0)
 	retained := false
-
-	err := notification.Context[0].Value.UnmarshalTo(addr)
-	if err != nil {
-		qdb.Error("[Aqara_LLKZMK12LM::ProcessNotification] Error parsing notification context: %v", err)
-		return
-	}
-
-	err = notification.Context[1].Value.UnmarshalTo(topic)
-	if err != nil {
-		qdb.Error("[Aqara_LLKZMK12LM::ProcessNotification] Error parsing notification context: %v", err)
-		return
-	}
 
 	switch notification.Current.Name {
 	case "GetTrigger":
