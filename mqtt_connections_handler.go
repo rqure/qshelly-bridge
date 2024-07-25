@@ -3,7 +3,6 @@ package main
 import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	qdb "github.com/rqure/qdb/src"
-	"github.com/rqure/qmqttgateway/devices"
 )
 
 type MqttEventType int
@@ -251,7 +250,7 @@ func (h *MqttConnectionsHandler) onMqttServerConnected(addr string) {
 	for _, server := range servers {
 		server.GetField("ConnectionStatus").PushValue(&qdb.ConnectionState{Raw: qdb.ConnectionState_CONNECTED})
 
-		for _, model := range devices.GetAllModels() {
+		for _, model := range GetAllModels() {
 			devs := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
 				EntityType: model,
 				Conditions: []qdb.FieldConditionEval{
@@ -260,7 +259,7 @@ func (h *MqttConnectionsHandler) onMqttServerConnected(addr string) {
 			})
 
 			for _, device := range devs {
-				configs := devices.MakeMqttDevice(model).GetSubscriptionConfig(device)
+				configs := MakeMqttDevice(model).GetSubscriptionConfig(device)
 				for _, config := range configs {
 					client.Subscribe(config.Topic, config.Qos, func(client mqtt.Client, msg mqtt.Message) {
 						h.events <- &MqttEvent{
@@ -322,7 +321,7 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Mes
 	}
 
 	// Not the most performant algorithm but should work for now
-	for _, model := range devices.GetAllModels() {
+	for _, model := range GetAllModels() {
 		entities := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
 			EntityType: model,
 			Conditions: []qdb.FieldConditionEval{
@@ -331,7 +330,7 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Mes
 		})
 
 		for _, entity := range entities {
-			device := devices.MakeMqttDevice(model)
+			device := MakeMqttDevice(model)
 			configs := device.GetSubscriptionConfig(entity)
 			for _, config := range configs {
 				if config.Topic == msg.Topic() {

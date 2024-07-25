@@ -2,7 +2,6 @@ package main
 
 import (
 	qdb "github.com/rqure/qdb/src"
-	"github.com/rqure/qmqttgateway/devices"
 )
 
 type DeviceCommandHandlerSignals struct {
@@ -31,8 +30,8 @@ func (h *DeviceCommandHandler) Reinitialize() {
 
 	h.tokens = []qdb.INotificationToken{}
 
-	for _, model := range devices.GetAllModels() {
-		configs := devices.MakeMqttDevice(model).GetNotificationConfig()
+	for _, model := range GetAllModels() {
+		configs := MakeMqttDevice(model).GetNotificationConfig()
 		for _, config := range configs {
 			h.tokens = append(h.tokens, h.db.Notify(config, qdb.NewNotificationCallback(h.ProcessNotification)))
 		}
@@ -77,7 +76,7 @@ func (h *DeviceCommandHandler) ProcessNotification(notification *qdb.DatabaseNot
 	}
 
 	entity := qdb.NewEntity(h.db, notification.Current.Id)
-	device := devices.MakeMqttDevice(entity.GetType())
+	device := MakeMqttDevice(entity.GetType())
 
 	if device == nil {
 		qdb.Error("[DeviceCommandHandler::ProcessNotification] Could not find device for model: %s", entity.GetType())
