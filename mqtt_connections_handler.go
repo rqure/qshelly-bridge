@@ -1,9 +1,18 @@
 package main
 
 import (
+	"encoding/json"
+
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	qdb "github.com/rqure/qdb/src"
 )
+
+type MqttMessageJson struct {
+	Topic    string      `json:"topic"`
+	Qos      int64       `json:"qos"`
+	Retained bool        `json:"retained"`
+	Payload  interface{} `json:"payload"`
+}
 
 type MqttEventType int
 
@@ -79,6 +88,15 @@ func (h *MqttConnectionsHandler) Reinitialize() {
 			"Address",
 		},
 	}, qdb.NewNotificationCallback(h.onServerEnableChanged)))
+
+	h.tokens = append(h.tokens, h.db.Notify(&qdb.DatabaseNotificationConfig{
+		Type:           "MqttServer",
+		Field:          "TxMessage",
+		NotifyOnChange: false,
+		ContextFields: []string{
+			"Address",
+		},
+	}, qdb.NewNotificationCallback(h.onPublishMessage)))
 
 	servers := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
 		EntityType: "MqttServer",
@@ -157,7 +175,24 @@ func (h *MqttConnectionsHandler) OnLostLeadership() {
 	}
 }
 
-func (h *MqttConnectionsHandler) OnPublish(args ...interface{}) {
+func (h *MqttConnectionsHandler) onPublishMessage(notification *qdb.DatabaseNotification) {
+	if !h.isLeader {
+		return
+	}
+
+	msgAsJson := qdb.ValueCast[*qdb.String](notification.Current.Value).Raw
+	msg := MqttMessageJson{}
+	if err := json.Unmarshal([]byte(msgAsJson), &msg); err != nil {
+		qdb.Error("[MqttConnectionsHandler::onPublishMessage] Error unmarshalling message: %v", err)
+		return
+	}
+
+	addr := qdb.ValueCast[*qdb.String](notification.Context[0].Value).Raw
+
+	h.DoPublish(addr, msg.Topic, byte(msg.Qos), msg.Retained, msg.Payload)
+}
+
+func (h *MqttConnectionsHandler) DoPublish(args ...interface{}) {
 	if !h.isLeader {
 		return
 	}
@@ -250,26 +285,17 @@ func (h *MqttConnectionsHandler) onMqttServerConnected(addr string) {
 	for _, server := range servers {
 		server.GetField("ConnectionStatus").PushValue(&qdb.ConnectionState{Raw: qdb.ConnectionState_CONNECTED})
 
-		for _, model := range GetAllModels() {
-			devs := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
-				EntityType: model,
-				Conditions: []qdb.FieldConditionEval{
-					qdb.NewStringCondition().Where("Server->Address").IsEqualTo(&qdb.String{Raw: addr}),
-				},
-			})
-
-			for _, device := range devs {
-				configs := MakeMqttDevice(model).GetSubscriptionConfig(device)
-				for _, config := range configs {
-					client.Subscribe(config.Topic, config.Qos, func(client mqtt.Client, msg mqtt.Message) {
-						h.events <- &MqttEvent{
-							EventType: MessageReceived,
-							Address:   addr,
-							EventData: msg,
-						}
-					})
+		for _, childId := range server.GetChildren() {
+			device := qdb.NewEntity(h.db, childId.Raw)
+			topic := device.GetField("Topic").PullString()
+			qos := byte(device.GetField("Qos").PullInt())
+			client.Subscribe(topic, qos, func(client mqtt.Client, msg mqtt.Message) {
+				h.events <- &MqttEvent{
+					EventType: MessageReceived,
+					Address:   addr,
+					EventData: msg,
 				}
-			}
+			})
 		}
 	}
 }
@@ -318,24 +344,30 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Mes
 	for _, server := range servers {
 		totalReceived := server.GetField("TotalReceived")
 		totalReceived.PushInt(totalReceived.PullInt() + 1)
-	}
 
-	// Not the most performant algorithm but should work for now
-	for _, model := range GetAllModels() {
-		entities := qdb.NewEntityFinder(h.db).Find(qdb.SearchCriteria{
-			EntityType: model,
-			Conditions: []qdb.FieldConditionEval{
-				qdb.NewStringCondition().Where("Server->Address").IsEqualTo(&qdb.String{Raw: addr}),
-			},
-		})
+		for _, childId := range server.GetChildren() {
+			device := qdb.NewEntity(h.db, childId.Raw)
+			topic := device.GetField("Topic").PullString()
 
-		for _, entity := range entities {
-			device := MakeMqttDevice(model)
-			configs := device.GetSubscriptionConfig(entity)
-			for _, config := range configs {
-				if config.Topic == msg.Topic() {
-					device.ProcessMessage(msg, entity)
+			if topic == msg.Topic() {
+				msgAsJson := MqttMessageJson{
+					Topic:    msg.Topic(),
+					Qos:      int64(msg.Qos()),
+					Retained: msg.Retained(),
 				}
+
+				msgAsJson.Payload = make(map[string]interface{})
+				if err := json.Unmarshal(msg.Payload(), &msgAsJson.Payload); err != nil {
+					msgAsJson.Payload = string(msg.Payload())
+				}
+
+				if j, err := json.Marshal(msgAsJson); err == nil {
+					device.GetField("RxMessageFn").PushString(string(j))
+				} else {
+					qdb.Error("[MqttConnectionsHandler::onMqttMessageReceived] Error marshalling message: %v", err)
+				}
+
+				break
 			}
 		}
 	}
