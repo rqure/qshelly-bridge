@@ -1,10 +1,11 @@
 module github.com/rqure/qmqttgateway
 
-go 1.22
+go 1.22.7
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.0
 	github.com/rqure/qdb v1.2.87
+	github.com/rqure/qlib v0.0.29
 )
 
 require (
@@ -14,7 +15,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/redis/go-redis/v9 v9.7.0 // indirect
-	golang.org/x/net v0.31.0 // indirect
-	golang.org/x/sync v0.9.0 // indirect
-	google.golang.org/protobuf v1.35.2 // indirect
+	golang.org/x/net v0.33.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	google.golang.org/protobuf v1.36.0 // indirect
 )

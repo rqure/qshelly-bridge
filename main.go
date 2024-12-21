@@ -4,56 +4,51 @@ import (
 	"os"
 
 	qdb "github.com/rqure/qdb/src"
+	"github.com/rqure/qlib/pkg/app"
+	"github.com/rqure/qlib/pkg/app/workers"
+	"github.com/rqure/qlib/pkg/data/store"
 )
 
 func getDatabaseAddress() string {
-	addr := os.Getenv("QDB_ADDR")
+	addr := os.Getenv("Q_ADDR")
 	if addr == "" {
-		addr = "redis:6379"
+		addr = "ws://webgateway:20000/ws"
 	}
 
 	return addr
 }
 
 func main() {
-	db := qdb.NewRedisDatabase(qdb.RedisDatabaseConfig{
+	db := store.NewWeb(store.WebConfig{
 		Address: getDatabaseAddress(),
 	})
 
-	dbWorker := qdb.NewDatabaseWorker(db)
-	leaderElectionWorker := qdb.NewLeaderElectionWorker(db)
+	storeWorker := workers.NewStore(db)
+	leadershipWorker := workers.NewLeadership(db)
 	mqttConnectionsHandler := NewMqttConnectionsHandler(db)
-	schemaValidator := qdb.NewSchemaValidator(db)
+	schemaValidator := leadershipWorker.GetEntityFieldValidator()
 
-	schemaValidator.AddEntity("Root", "SchemaUpdateTrigger")
-	schemaValidator.AddEntity("MqttController")
-	schemaValidator.AddEntity("MqttServer", "Address", "ConnectionStatus", "Enabled", "TotalSent", "TotalReceived", "TotalDropped", "TxMessage")
+	schemaValidator.RegisterEntityFields("Root", "SchemaUpdateTrigger")
+	schemaValidator.RegisterEntityFields("MqttController")
+	schemaValidator.RegisterEntityFields("MqttServer", "Address", "ConnectionStatus", "Enabled", "TotalSent", "TotalReceived", "TotalDropped", "TxMessage")
 
-	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(schemaValidator.ValidationRequired))
-	dbWorker.Signals.Connected.Connect(qdb.Slot(schemaValidator.ValidationRequired))
-	leaderElectionWorker.AddAvailabilityCriteria(func() bool {
-		return dbWorker.IsConnected() && schemaValidator.IsValid()
-	})
-
-	dbWorker.Signals.Connected.Connect(qdb.Slot(leaderElectionWorker.OnDatabaseConnected))
-	dbWorker.Signals.Disconnected.Connect(qdb.Slot(leaderElectionWorker.OnDatabaseDisconnected))
-	dbWorker.Signals.SchemaUpdated.Connect(qdb.Slot(mqttConnectionsHandler.OnSchemaUpdated))
-	leaderElectionWorker.Signals.BecameLeader.Connect(qdb.Slot(mqttConnectionsHandler.OnBecameLeader))
-	leaderElectionWorker.Signals.LosingLeadership.Connect(qdb.Slot(mqttConnectionsHandler.OnLostLeadership))
+	storeWorker.Connected.Connect(leadershipWorker.OnStoreConnected)
+	storeWorker.Disconnected.Connect(leadershipWorker.OnStoreDisconnected)
+	storeWorker.SchemaUpdated.Connect(mqttConnectionsHandler.OnSchemaUpdated)
+	leadershipWorker.BecameLeader().Connect(mqttConnectionsHandler.OnBecameLeader)
+	leadershipWorker.LosingLeadership().Connect(mqttConnectionsHandler.OnLostLeadership)
 
 	// Create a new application configuration
 	config := qdb.ApplicationConfig{
 		Name: "mqttgateway",
 		Workers: []qdb.IWorker{
-			dbWorker,
-			leaderElectionWorker,
+			storeWorker,
+			leadershipWorker,
 			mqttConnectionsHandler,
 		},
 	}
 
-	// Create a new application
-	app := qdb.NewApplication(config)
+	app := app.NewApplication(config)
 
-	// Execute the application
 	app.Execute()
 }
