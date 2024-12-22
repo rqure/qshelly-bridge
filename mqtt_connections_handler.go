@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	qdb "github.com/rqure/qdb/src"
 	"github.com/rqure/qlib/pkg/app"
 	"github.com/rqure/qlib/pkg/data"
 	"github.com/rqure/qlib/pkg/data/binding"
@@ -64,56 +63,62 @@ type MqttConnectionsHandler struct {
 
 func NewMqttConnectionsHandler(store data.Store) *MqttConnectionsHandler {
 	return &MqttConnectionsHandler{
-		db:           db,
+		store:        store,
 		addrToClient: make(map[string]mqtt.Client),
 		events:       make(chan IMqttEvent, 1024),
 		tokens:       []data.NotificationToken{},
 	}
 }
 
-func (h *MqttConnectionsHandler) Reinitialize() {
+func (h *MqttConnectionsHandler) Reinitialize(ctx context.Context) {
 	for _, token := range h.tokens {
-		token.Unbind()
+		token.Unbind(ctx)
 	}
 
 	h.tokens = []data.NotificationToken{}
 
-	h.tokens = append(h.tokens, h.db.Notify(&qdb.DatabaseNotificationConfig{
-		Type:           "MqttServer",
-		Field:          "Address",
-		NotifyOnChange: true,
-		ContextFields: []string{
-			"Enabled",
-		},
-	}, notification.NewCallback(h.onServerAddressChanged)))
+	h.tokens = append(h.tokens, h.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("Root").
+			SetFieldName("SchemaUpdateTrigger"),
+		notification.NewCallback(h.OnSchemaUpdated)))
 
-	h.tokens = append(h.tokens, h.db.Notify(&qdb.DatabaseNotificationConfig{
-		Type:           "MqttServer",
-		Field:          "Enabled",
-		NotifyOnChange: true,
-		ContextFields: []string{
-			"Address",
-		},
-	}, notification.NewCallback(h.onServerEnableChanged)))
+	h.tokens = append(h.tokens, h.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("MqttServer").
+			SetFieldName("Address").
+			SetNotifyOnChange(true).
+			SetContextFields(
+				"Enabled",
+			),
+		notification.NewCallback(h.onServerAddressChanged)))
 
-	h.tokens = append(h.tokens, h.db.Notify(&qdb.DatabaseNotificationConfig{
-		Type:           "MqttServer",
-		Field:          "TxMessage",
-		NotifyOnChange: false,
-		ContextFields: []string{
-			"Address",
-		},
-	}, notification.NewCallback(h.onPublishMessage)))
+	h.tokens = append(h.tokens, h.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("MqttServer").
+			SetFieldName("Enabled").
+			SetNotifyOnChange(true).
+			SetContextFields(
+				"Address",
+			),
+		notification.NewCallback(h.onServerEnableChanged)))
 
-	servers := query.New(h.db).Find(qdb.SearchCriteria{
-		EntityType: "MqttServer",
-		Conditions: []qdb.FieldConditionEval{},
-	})
+	h.tokens = append(h.tokens, h.store.Notify(
+		ctx,
+		notification.NewConfig().
+			SetEntityType("MqttServer").
+			SetFieldName("TxMessage").
+			SetNotifyOnChange(false),
+		notification.NewCallback(h.onPublishMessage)))
 
+	servers := query.New(h.store).ForType("MqttServer").Execute(ctx)
 	for _, server := range servers {
 		addr := server.GetField("Address").ReadString(ctx)
 		if _, ok := h.addrToClient[addr]; ok {
-			if server.GetField("Enabled").ReadBool() && !h.addrToClient[addr].IsConnected(ctx) && h.isLeader {
+			if server.GetField("Enabled").ReadBool(ctx) && !h.addrToClient[addr].IsConnected() && h.isLeader {
 				h.addrToClient[addr].Connect()
 			}
 			continue
@@ -145,23 +150,23 @@ func (h *MqttConnectionsHandler) Reinitialize() {
 	}
 }
 
-func (h *MqttConnectionsHandler) OnSchemaUpdated() {
+func (h *MqttConnectionsHandler) OnSchemaUpdated(ctx context.Context, n data.Notification) {
 	if !h.isLeader {
 		return
 	}
 
 	// In case more servers are configured, we should reinitialize to capture
 	// notifications for any new servers
-	h.Reinitialize()
+	h.Reinitialize(ctx)
 }
 
-func (h *MqttConnectionsHandler) OnBecameLeader(context.Context) {
+func (h *MqttConnectionsHandler) OnBecameLeader(ctx context.Context) {
 	h.isLeader = true
 
-	h.Reinitialize()
+	h.Reinitialize(ctx)
 }
 
-func (h *MqttConnectionsHandler) OnLostLeadership(context.Context) {
+func (h *MqttConnectionsHandler) OnLostLeadership(ctx context.Context) {
 	h.isLeader = false
 
 	for _, client := range h.addrToClient {
@@ -169,37 +174,35 @@ func (h *MqttConnectionsHandler) OnLostLeadership(context.Context) {
 			client.Disconnect(0)
 		}
 
-		servers := query.New(h.db).Find(qdb.SearchCriteria{
-			EntityType: "MqttServer",
-			Conditions: []qdb.FieldConditionEval{
-				qdb.NewBoolCondition().Where("Enabled").IsEqualTo(&qdb.Bool{Raw: true}),
-			},
-		})
+		servers := query.New(h.store).
+			ForType("MqttServer").
+			Where("Enabled").Equals(true).
+			Execute(ctx)
 
 		for _, server := range servers {
-			server.GetField("ConnectionStatus").WriteValue(ctx, &qdb.ConnectionState{Raw: qdb.ConnectionState_DISCONNECTED})
+			server.GetField("IsConnected").WriteBool(ctx, false, data.WriteChanges)
 		}
 	}
 }
 
-func (h *MqttConnectionsHandler) onPublishMessage(ctx context.Context, notification data.Notification) {
+func (h *MqttConnectionsHandler) onPublishMessage(ctx context.Context, n data.Notification) {
 	if !h.isLeader {
 		return
 	}
 
-	msgAsJson := notification.GetCurrent().GetValue().GetString()
+	msgAsJson := n.GetCurrent().GetValue().GetString()
 	msg := MqttMessageJson{}
 	if err := json.Unmarshal([]byte(msgAsJson), &msg); err != nil {
 		log.Error("Error unmarshalling message: %v", err)
 		return
 	}
 
-	addr := notification.GetContext(0).GetValue().GetString()
+	addr := n.GetContext(0).GetValue().GetString()
 
-	h.DoPublish(addr, msg.Topic, byte(msg.Qos), msg.Retained, msg.Payload)
+	h.DoPublish(ctx, addr, msg.Topic, byte(msg.Qos), msg.Retained, msg.Payload)
 }
 
-func (h *MqttConnectionsHandler) DoPublish(args ...interface{}) {
+func (h *MqttConnectionsHandler) DoPublish(ctx context.Context, args ...interface{}) {
 	if !h.isLeader {
 		return
 	}
@@ -213,17 +216,14 @@ func (h *MqttConnectionsHandler) DoPublish(args ...interface{}) {
 	log.Trace("Publishing message to server: %s, topic: %s, qos: %d, retained: %v, payload: %v", addr, topic, qos, retained, payload)
 
 	if client, ok := h.addrToClient[addr]; ok {
-		servers := query.New(h.db).Find(qdb.SearchCriteria{
-			EntityType: "MqttServer",
-			Conditions: []qdb.FieldConditionEval{},
-		})
+		servers := query.New(h.store).ForType("MqttServer").Execute(ctx)
 
 		if !client.IsConnected() {
 			log.Warn("Client not connected for address: %s", addr)
 
 			for _, server := range servers {
 				totalDropped := server.GetField("TotalDropped")
-				totalDropped.WriteInt(totalDropped.ReadInt(ctx) + 1)
+				totalDropped.WriteInt(ctx, totalDropped.ReadInt(ctx)+1)
 			}
 
 			return
@@ -252,17 +252,17 @@ func (h *MqttConnectionsHandler) Deinit(context.Context) {
 	}
 }
 
-func (h *MqttConnectionsHandler) DoWork(context.Context) {
+func (h *MqttConnectionsHandler) DoWork(ctx context.Context) {
 	for {
 		select {
 		case event := <-h.events:
 			switch event.GetEventType() {
 			case ConnectionEstablished:
-				h.onMqttServerConnected(event.GetAddress())
+				h.onMqttServerConnected(ctx, event.GetAddress())
 			case ConnectionLost:
-				h.onMqttServerDisconnected(event.GetAddress(), event.GetEventData().(error))
+				h.onMqttServerDisconnected(ctx, event.GetAddress(), event.GetEventData().(error))
 			case MessageReceived:
-				h.onMqttMessageReceived(event.GetAddress(), event.GetEventData().(mqtt.Message))
+				h.onMqttMessageReceived(ctx, event.GetAddress(), event.GetEventData().(mqtt.Message))
 			}
 		default:
 			return
@@ -270,7 +270,7 @@ func (h *MqttConnectionsHandler) DoWork(context.Context) {
 	}
 }
 
-func (h *MqttConnectionsHandler) onMqttServerConnected(addr string) {
+func (h *MqttConnectionsHandler) onMqttServerConnected(ctx context.Context, addr string) {
 	if !h.isLeader {
 		return
 	}
@@ -282,18 +282,16 @@ func (h *MqttConnectionsHandler) onMqttServerConnected(addr string) {
 	}
 
 	client := h.addrToClient[addr]
-	servers := query.New(h.db).Find(qdb.SearchCriteria{
-		EntityType: "MqttServer",
-		Conditions: []qdb.FieldConditionEval{
-			qdb.NewStringCondition().Where("Address").IsEqualTo(&qdb.String{Raw: addr}),
-		},
-	})
+	servers := query.New(h.store).
+		ForType("MqttServer").
+		Where("Address").Equals(addr).
+		Execute(ctx)
 
 	for _, server := range servers {
-		server.GetField("ConnectionStatus").WriteValue(ctx, &qdb.ConnectionState{Raw: qdb.ConnectionState_CONNECTED})
+		server.GetField("IsConnected").WriteBool(ctx, true, data.WriteChanges)
 
-		for _, childId := range server.GetChildren() {
-			device := binding.NewEntity(ctx, h.db, childId.Raw)
+		for _, childId := range server.GetChildrenIds() {
+			device := binding.NewEntity(ctx, h.store, childId)
 			topic := device.GetField("Topic").ReadString(ctx)
 			qos := byte(device.GetField("Qos").ReadInt(ctx))
 			client.Subscribe(topic, qos, func(client mqtt.Client, msg mqtt.Message) {
@@ -307,7 +305,7 @@ func (h *MqttConnectionsHandler) onMqttServerConnected(addr string) {
 	}
 }
 
-func (h *MqttConnectionsHandler) onMqttServerDisconnected(addr string, err error) {
+func (h *MqttConnectionsHandler) onMqttServerDisconnected(ctx context.Context, addr string, err error) {
 	if !h.isLeader {
 		return
 	}
@@ -318,19 +316,17 @@ func (h *MqttConnectionsHandler) onMqttServerDisconnected(addr string, err error
 		return
 	}
 
-	servers := query.New(h.db).Find(qdb.SearchCriteria{
-		EntityType: "MqttServer",
-		Conditions: []qdb.FieldConditionEval{
-			qdb.NewStringCondition().Where("Address").IsEqualTo(&qdb.String{Raw: addr}),
-		},
-	})
+	servers := query.New(h.store).
+		ForType("MqttServer").
+		Where("Address").Equals(addr).
+		Execute(ctx)
 
 	for _, server := range servers {
-		server.GetField("ConnectionStatus").WriteValue(ctx, &qdb.ConnectionState{Raw: qdb.ConnectionState_DISCONNECTED})
+		server.GetField("IsConnected").WriteBool(ctx, false, data.WriteChanges)
 	}
 }
 
-func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Message) {
+func (h *MqttConnectionsHandler) onMqttMessageReceived(ctx context.Context, addr string, msg mqtt.Message) {
 	if !h.isLeader {
 		return
 	}
@@ -341,19 +337,17 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Mes
 		return
 	}
 
-	servers := query.New(h.db).Find(qdb.SearchCriteria{
-		EntityType: "MqttServer",
-		Conditions: []qdb.FieldConditionEval{
-			qdb.NewStringCondition().Where("Address").IsEqualTo(&qdb.String{Raw: addr}),
-		},
-	})
+	servers := query.New(h.store).
+		ForType("MqttServer").
+		Where("Address").Equals(addr).
+		Execute(ctx)
 
 	for _, server := range servers {
 		totalReceived := server.GetField("TotalReceived")
 		totalReceived.WriteInt(ctx, totalReceived.ReadInt(ctx)+1)
 
-		for _, childId := range server.GetChildren() {
-			device := binding.NewEntity(ctx, h.db, childId.Raw)
+		for _, childId := range server.GetChildrenIds() {
+			device := binding.NewEntity(ctx, h.store, childId)
 			topic := device.GetField("Topic").ReadString(ctx)
 
 			if topic == msg.Topic() {
@@ -369,7 +363,7 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Mes
 				}
 
 				if j, err := json.Marshal(msgAsJson); err == nil {
-					device.GetField("RxMessageFn").WriteString(string(ctx, j))
+					device.GetField("RxMessageFn").WriteString(ctx, string(j))
 				} else {
 					log.Error("Error marshalling message: %v", err)
 				}
@@ -380,60 +374,60 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(addr string, msg mqtt.Mes
 	}
 }
 
-func (h *MqttConnectionsHandler) onServerAddressChanged(ctx context.Context, notification data.Notification) {
+func (h *MqttConnectionsHandler) onServerAddressChanged(ctx context.Context, n data.Notification) {
 	if !h.isLeader {
 		return
 	}
 
-	prev := qdb.ValueCast[*qdb.String](notification.Previous.Value)
-	curr := qdb.ValueCast[*qdb.String](notification.GetCurrent().GetValue())
-	enabled := qdb.ValueCast[*qdb.Bool](notification.GetContext(0).GetValue())
+	prev := n.GetPrevious().GetValue().GetString()
+	curr := n.GetCurrent().GetValue().GetString()
+	enabled := n.GetContext(0).GetValue().GetBool()
 
-	if client, ok := h.addrToClient[prev.Raw]; ok {
+	if client, ok := h.addrToClient[prev]; ok {
 		if client.IsConnected() {
 			client.Disconnect(0)
 		}
 
-		delete(h.addrToClient, prev.Raw)
+		delete(h.addrToClient, prev)
 	}
 
-	if _, ok := h.addrToClient[curr.Raw]; ok {
+	if _, ok := h.addrToClient[curr]; ok {
 		return
 	}
 
 	opts := mqtt.NewClientOptions()
-	opts.AddBroker(curr.Raw)
+	opts.AddBroker(curr)
 	opts.AutoReconnect = true
 	opts.OnConnect = func(client mqtt.Client) {
 		h.events <- &MqttEvent{
 			EventType: ConnectionEstablished,
-			Address:   curr.Raw,
+			Address:   curr,
 		}
 	}
 	opts.OnConnectionLost = func(client mqtt.Client, err error) {
 		h.events <- &MqttEvent{
 			EventType: ConnectionLost,
-			Address:   curr.Raw,
+			Address:   curr,
 			EventData: err,
 		}
 	}
-	h.addrToClient[curr.Raw] = mqtt.NewClient(opts)
+	h.addrToClient[curr] = mqtt.NewClient(opts)
 
-	if enabled.Raw {
-		h.addrToClient[curr.Raw].Connect()
+	if enabled {
+		h.addrToClient[curr].Connect()
 	}
 }
 
-func (h *MqttConnectionsHandler) onServerEnableChanged(ctx context.Context, notification data.Notification) {
+func (h *MqttConnectionsHandler) onServerEnableChanged(ctx context.Context, n data.Notification) {
 	if !h.isLeader {
 		return
 	}
 
-	addr := qdb.ValueCast[*qdb.String](notification.GetContext(0).GetValue())
-	enabled := qdb.ValueCast[*qdb.Bool](notification.GetCurrent().GetValue())
+	addr := n.GetContext(0).GetValue().GetString()
+	enabled := n.GetCurrent().GetValue().GetBool()
 
-	if client, ok := h.addrToClient[addr.Raw]; ok {
-		if enabled.Raw {
+	if client, ok := h.addrToClient[addr]; ok {
+		if enabled {
 			if !client.IsConnected() {
 				client.Connect()
 			}
@@ -443,6 +437,6 @@ func (h *MqttConnectionsHandler) onServerEnableChanged(ctx context.Context, noti
 			}
 		}
 	} else {
-		log.Error("No client found for address: %s", addr.Raw)
+		log.Error("No client found for address: %s", addr)
 	}
 }
