@@ -4,7 +4,7 @@ go 1.22.7
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.0
-	github.com/rqure/qlib v0.0.32
+	github.com/rqure/qlib v0.0.33
 )
 
 require (
@@ -16,5 +16,5 @@ require (
 	github.com/redis/go-redis/v9 v9.7.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	google.golang.org/protobuf v1.36.0 // indirect
+	google.golang.org/protobuf v1.36.1 // indirect
 )
