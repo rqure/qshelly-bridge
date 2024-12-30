@@ -114,11 +114,15 @@ func (h *MqttConnectionsHandler) Reinitialize(ctx context.Context) {
 			SetNotifyOnChange(false),
 		notification.NewCallback(h.onPublishMessage)))
 
-	servers := query.New(h.store).ForType("MqttServer").Execute(ctx)
+	servers := query.New(h.store).
+		Select("Address", "Enabled").
+		From("MqttServer").
+		Execute(ctx)
+
 	for _, server := range servers {
-		addr := server.GetField("Address").ReadString(ctx)
+		addr := server.GetField("Address").GetString()
 		if _, ok := h.addrToClient[addr]; ok {
-			if server.GetField("Enabled").ReadBool(ctx) && !h.addrToClient[addr].IsConnected() && h.isLeader {
+			if server.GetField("Enabled").GetBool() && !h.addrToClient[addr].IsConnected() && h.isLeader {
 				h.addrToClient[addr].Connect()
 			}
 			continue
@@ -142,7 +146,7 @@ func (h *MqttConnectionsHandler) Reinitialize(ctx context.Context) {
 		}
 		h.addrToClient[addr] = mqtt.NewClient(opts)
 
-		if server.GetField("Enabled").ReadBool(ctx) {
+		if server.GetField("Enabled").GetBool() {
 			if h.isLeader {
 				h.addrToClient[addr].Connect()
 			}
@@ -174,14 +178,18 @@ func (h *MqttConnectionsHandler) OnLostLeadership(ctx context.Context) {
 			client.Disconnect(0)
 		}
 
-		servers := query.New(h.store).
-			ForType("MqttServer").
+		multi := binding.NewMulti(h.store)
+		servers := query.New(multi).
+			Select().
+			From("MqttServer").
 			Where("Enabled").Equals(true).
 			Execute(ctx)
 
 		for _, server := range servers {
 			server.GetField("IsConnected").WriteBool(ctx, false, data.WriteChanges)
 		}
+
+		multi.Commit(ctx)
 	}
 }
 
@@ -216,14 +224,17 @@ func (h *MqttConnectionsHandler) DoPublish(ctx context.Context, args ...interfac
 	log.Trace("Publishing message to server: %s, topic: %s, qos: %d, retained: %v, payload: %v", addr, topic, qos, retained, payload)
 
 	if client, ok := h.addrToClient[addr]; ok {
-		servers := query.New(h.store).ForType("MqttServer").Execute(ctx)
+		servers := query.New(h.store).
+			Select("TotalDropped", "TotalSent").
+			From("MqttServer").
+			Execute(ctx)
 
 		if !client.IsConnected() {
 			log.Warn("Client not connected for address: %s", addr)
 
 			for _, server := range servers {
 				totalDropped := server.GetField("TotalDropped")
-				totalDropped.WriteInt(ctx, totalDropped.ReadInt(ctx)+1)
+				totalDropped.WriteInt(ctx, totalDropped.GetInt()+1)
 			}
 
 			return
@@ -233,7 +244,7 @@ func (h *MqttConnectionsHandler) DoPublish(ctx context.Context, args ...interfac
 
 		for _, server := range servers {
 			totalSent := server.GetField("TotalSent")
-			totalSent.WriteInt(ctx, totalSent.ReadInt(ctx)+1)
+			totalSent.WriteInt(ctx, totalSent.GetInt()+1)
 		}
 	} else {
 		log.Error("No client found for address: %s", addr)
@@ -283,7 +294,8 @@ func (h *MqttConnectionsHandler) onMqttServerConnected(ctx context.Context, addr
 
 	client := h.addrToClient[addr]
 	servers := query.New(h.store).
-		ForType("MqttServer").
+		Select().
+		From("MqttServer").
 		Where("Address").Equals(addr).
 		Execute(ctx)
 
@@ -292,8 +304,14 @@ func (h *MqttConnectionsHandler) onMqttServerConnected(ctx context.Context, addr
 
 		for _, childId := range server.GetChildrenIds() {
 			device := binding.NewEntity(ctx, h.store, childId)
-			topic := device.GetField("Topic").ReadString(ctx)
-			qos := byte(device.GetField("Qos").ReadInt(ctx))
+			device.DoMulti(ctx, func(device data.EntityBinding) {
+				device.GetField("Topic").ReadString(ctx)
+				device.GetField("Qos").ReadInt(ctx)
+			})
+
+			topic := device.GetField("Topic").GetString()
+			qos := byte(device.GetField("Qos").GetInt())
+
 			client.Subscribe(topic, qos, func(client mqtt.Client, msg mqtt.Message) {
 				h.events <- &MqttEvent{
 					EventType: MessageReceived,
@@ -316,14 +334,18 @@ func (h *MqttConnectionsHandler) onMqttServerDisconnected(ctx context.Context, a
 		return
 	}
 
-	servers := query.New(h.store).
-		ForType("MqttServer").
+	multi := binding.NewMulti(h.store)
+	servers := query.New(multi).
+		Select().
+		From("MqttServer").
 		Where("Address").Equals(addr).
 		Execute(ctx)
 
 	for _, server := range servers {
 		server.GetField("IsConnected").WriteBool(ctx, false, data.WriteChanges)
 	}
+
+	multi.Commit(ctx)
 }
 
 func (h *MqttConnectionsHandler) onMqttMessageReceived(ctx context.Context, addr string, msg mqtt.Message) {
@@ -338,13 +360,14 @@ func (h *MqttConnectionsHandler) onMqttMessageReceived(ctx context.Context, addr
 	}
 
 	servers := query.New(h.store).
-		ForType("MqttServer").
+		Select("TotalReceived").
+		From("MqttServer").
 		Where("Address").Equals(addr).
 		Execute(ctx)
 
 	for _, server := range servers {
 		totalReceived := server.GetField("TotalReceived")
-		totalReceived.WriteInt(ctx, totalReceived.ReadInt(ctx)+1)
+		totalReceived.WriteInt(ctx, totalReceived.GetInt()+1)
 
 		for _, childId := range server.GetChildrenIds() {
 			device := binding.NewEntity(ctx, h.store, childId)
